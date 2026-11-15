@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="fr" data-theme="dark" data-detail="simple" data-page="carte">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="SAJE Field : les observations radar NASA-ISRO NISAR de la province de l’Estuaire (Gabon), lues et expliquées pour tous. Application statique, hors ligne.">
+<meta name="color-scheme" content="dark light">
+<title>SAJE Field · L’Estuaire vu par le radar NISAR</title>
+<link rel="icon" href="img/favicon.png">
+<link rel="stylesheet" href="lib/leaflet.css">
+<link rel="stylesheet" href="css/saje.css">
+<script>
+  // thème et niveau de détail mémorisés (avant l'affichage, pour éviter un flash)
+  try {
+    const t = localStorage.getItem('saje_theme'), d = localStorage.getItem('saje_detail');
+    if (t) document.documentElement.dataset.theme = t;
+    if (d) document.documentElement.dataset.detail = d;
+  } catch (e) { /* stockage indisponible : valeurs par défaut */ }
+</script>
+<script defer src="js/donnees/data_province.js"></script>
+<script defer src="js/donnees/cube_province.js"></script>
+<script defer src="js/donnees/monde.js"></script>
+<script defer src="lib/leaflet.js"></script>
+<script defer src="lib/chart.umd.min.js"></script>
+<script defer src="js/donnees.js"></script>
+<script defer src="js/analyse.js"></script>
+<script defer src="js/raisonnement.js"></script>
+<script defer src="js/donnees/previsions_province.js" onerror="void 0"></script>
+<script defer src="js/prediction.js"></script>
+<script defer src="js/carte.js"></script>
+<script defer src="js/interface.js"></script>
+<script defer src="js/observatoire.js"></script>
+<script defer src="js/donnees/bassin/index.js" onerror="void 0"></script>
+<script defer src="js/bassin.js"></script>
+</head>
+<body>
+<a class="skip" href="#main">Aller au contenu</a>
+
+<div class="app">
+  <div class="scrim" id="scrim" hidden></div>
+  <!-- ================= MENU ================= -->
+  <aside class="sidebar" id="sidebar" aria-label="Menu principal">
+    <a class="brand" href="#carte" data-page-link="carte" aria-label="SAJE Field, accueil">
+      <img src="img/logo.png" alt="" width="176" height="144">
+      <span class="brand-tag">Comprendre aujourd’hui, préserver demain</span>
+    </a>
+    <nav class="nav" aria-label="Navigation principale">
+      <button class="nav-link" data-page-link="carte"><span class="ico" data-icon="globe"></span><span>Carte interactive</span><span class="num">01</span></button>
+      <button class="nav-link" data-page-link="accueil"><span class="ico" data-icon="grid"></span><span>Tableau de bord</span><span class="num">02</span></button>
+      <button class="nav-link" data-page-link="bassin"><span class="ico" data-icon="waves"></span><span>Bassin du Congo</span><span class="num">↗</span></button>
+      <button class="nav-link" data-page-link="comprendre"><span class="ico" data-icon="book"></span><span>Comprendre</span><span class="num">03</span></button>
+      <button class="nav-link" data-page-link="sources"><span class="ico" data-icon="shield"></span><span>Sources & qualité</span><span class="num">04</span></button>
+    </nav>
+    <div class="side-card">
+      <span class="eyebrow">Une autre vue du territoire</span>
+      <p class="side-title">Au-delà<br>des nuages.</p>
+      <p class="muted small">Le radar voit le sol de jour comme de nuit, même sous la couverture nuageuse de l’équateur.</p>
+      <div class="orbit" aria-hidden="true"><span></span><i></i></div>
+      <button class="button ghost small-btn" id="tourStart"><span class="ico" data-icon="play"></span>Visite guidée en 3 étapes</button>
+    </div>
+    <footer class="side-foot">
+      <div class="local-badge"><span class="dot"></span>Données embarquées · sans serveur</div>
+      <p><strong>NASA · ISRO · NISAR</strong><br>Équipe Hope 241 · NASA Space Apps 2026</p>
+      <span class="flag" role="img" aria-label="Drapeau du Gabon"><i></i><i></i><i></i></span>
+    </footer>
+  </aside>
+
+  <div class="shell">
+    <!-- ================= BARRE DU HAUT ================= -->
+    <header class="topbar">
+      <button class="icon-button" id="menuToggle" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="sidebar"><span class="ico" data-icon="menu"></span></button>
+      <a class="top-brand" href="#carte" data-page-link="carte" aria-label="SAJE Field, carte interactive"><img src="img/logo.png" alt="" width="44" height="36"><span>SAJE Field</span></a>
+      <p class="crumb"><span aria-hidden="true">/</span><strong id="crumbPage">Carte interactive</strong></p>
+      <span class="grow"></span>
+      <span class="chip mode-chip" id="modeChip" title="Mode d’affichage"></span>
+      <span class="chip net" id="netChip" title="Connexion"><span class="dot"></span><span id="netText">Hors ligne</span></span>
+      <div class="more">
+        <button class="icon-button" id="moreBtn" aria-label="Réglages : thème et mode d’affichage" aria-haspopup="menu" aria-expanded="false" aria-controls="moreMenu"><span class="ico" data-icon="dots"></span></button>
+        <div class="more-menu" id="moreMenu" role="menu" aria-label="Réglages" hidden>
+          <p class="more-title">Mode d’affichage</p>
+          <button role="menuitemradio" class="more-item" data-detail="simple" aria-checked="true"><span class="ico" data-icon="user"></span><span><b>Simple</b><small>Pour tout le monde, en mots de tous les jours</small></span><span class="ico check" data-icon="tick"></span></button>
+          <button role="menuitemradio" class="more-item" data-detail="expert" aria-checked="false"><span class="ico" data-icon="chart"></span><span><b>Analyste</b><small>Chiffres, statistiques, signaux radar, exports</small></span><span class="ico check" data-icon="tick"></span></button>
+          <hr>
+          <button role="menuitemcheckbox" class="more-item" id="themeToggle" aria-checked="true"><span class="ico" data-icon="moon"></span><span><b>Thème sombre</b><small>Plus reposant pour les yeux</small></span><span class="switch-mini" aria-hidden="true"><i></i></span></button>
+          <hr>
+          <p class="more-net" id="moreNet"><span class="dot"></span><span id="moreNetTxt">Hors ligne : tout fonctionne sans Internet</span></p>
+          <button role="menuitem" class="more-item" id="helpToggle"><span class="ico" data-icon="help"></span><span><b>Visite guidée</b><small>Découvrir l’application en 3 étapes</small></span></button>
+        </div>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <!-- ===== Carte interactive (page d'arrivée) ===== -->
+      <section class="obs" id="page-carte" data-pages="carte" aria-label="Carte interactive : le monde, et l’Estuaire analysé par SAJE Field">
+        <div id="obsMap" role="region" aria-label="Carte du monde. La province de l’Estuaire (Gabon) est couverte de cercles colorés selon l’analyse des données NISAR. Le panneau « Où regarder » et la frise des passages donnent les mêmes informations au clavier."></div>
+
+        <!-- en haut à gauche : module + affichage -->
+        <div class="obs-top">
+          <div class="obs-tabwrap">
+            <button class="obs-tab" id="obsTab" aria-haspopup="true" aria-expanded="false" aria-controls="obsModPanel"></button>
+            <div class="obs-mod-panel" id="obsModPanel" role="group" aria-label="Choisir ce que la carte montre" hidden></div>
+          </div>
+          <div class="obs-tabwrap">
+            <button class="obs-tab petit" id="obsDispBtn" aria-label="Affichage de la carte" title="Affichage de la carte" aria-haspopup="true" aria-expanded="false" aria-controls="obsDisplay"><span class="ico" data-icon="sliders"></span><span class="t-lbl"><b>Affichage</b></span></button>
+            <div class="obs-pop" id="obsDisplay" role="group" aria-label="Réglages de la carte" hidden>
+              <p class="pop-t">Découpage</p>
+              <div class="seg small" role="group" aria-label="Découpage">
+                <button data-decoupe="secteurs" aria-pressed="true">Secteurs</button>
+                <button data-decoupe="zones" aria-pressed="false">Zones suivies</button>
+              </div>
+              <div class="expert-only">
+                <p class="pop-t">Diamètre des cercles</p>
+                <div class="seg small" role="group" aria-label="Diamètre des cercles">
+                  <button data-taille="7" aria-pressed="false">7 km</button>
+                  <button data-taille="14" aria-pressed="true">14 km</button>
+                  <button data-taille="28" aria-pressed="false">28 km</button>
+                </div>
+                <p class="pop-t">Couleur des cercles</p>
+                <div class="seg small" role="group" aria-label="Couleur des cercles">
+                  <button data-couleur="conclusion" aria-pressed="true">Conclusion</button>
+                  <button data-couleur="z" aria-pressed="false">Écart z</button>
+                </div>
+              </div>
+              <p class="pop-t">Fonds</p>
+              <button class="pop-sw" id="obsImage" role="switch" aria-checked="false"><span class="ico" data-icon="radar"></span><span>Image radar<small>Automatique quand on zoome</small></span><span class="switch-mini" aria-hidden="true"><i></i></span></button>
+              <button class="pop-sw" id="obsSat" role="switch" aria-checked="false" hidden><span class="ico" data-icon="satellite"></span><span>Satellite<small>Demande Internet</small></span><span class="switch-mini" aria-hidden="true"><i></i></span></button>
+              <p class="pop-t">Aller à</p>
+              <div class="pop-row">
+                <button class="chip-btn" id="obsWorld"><span class="ico" data-icon="globe"></span> Monde</button>
+                <button class="chip-btn" id="obsHome"><span class="ico" data-icon="target"></span> Estuaire</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- bandeau : sujet non mesurable ce jour-là -->
+        <div class="obs-banner" id="obsBanner" role="status" hidden></div>
+
+        <!-- progression du raisonnement -->
+        <div class="obs-progress" id="obsProgress" role="status" aria-live="polite" hidden>
+          <span class="obs-spin" aria-hidden="true"></span>
+          <span><b id="obsProgTitle">L’algorithme analyse les données…</b><small id="obsProgText"></small></span>
+          <span class="obs-bar" aria-hidden="true"><i id="obsProgBar"></i></span>
+        </div>
+        <div class="obs-scan" id="obsScan" aria-hidden="true" hidden></div>
+
+        <!-- où regarder (alternative clavier à la carte) -->
+        <aside class="obs-rank" id="obsRank" aria-labelledby="obsRankTitle">
+          <button class="obs-rank-head" id="obsRankToggle" aria-expanded="true" aria-controls="obsRankBody">
+            <span><span class="eyebrow">Résultat de l’analyse</span><strong id="obsRankTitle">Où regarder en priorité</strong></span>
+            <span class="ico" data-icon="chevron"></span>
+          </button>
+          <div class="obs-rank-body" id="obsRankBody">
+            <p class="obs-summary" id="obsSummary"></p>
+            <ol class="obs-rank-list" id="obsRankList"></ol>
+          </div>
+        </aside>
+
+        <!-- légende rétractable -->
+        <div class="obs-legend" id="obsLegend">
+          <button class="lg-toggle" id="obsLgToggle" aria-expanded="false" aria-controls="obsLgBody"></button>
+          <div class="lg-body" id="obsLgBody" hidden></div>
+        </div>
+
+        <!-- frise des passages : observer dans le temps, comparer -->
+        <div class="obs-time" id="obsTime" role="group" aria-label="Passages du satellite dans le temps">
+          <div class="obs-cmp" id="obsCmpBar" hidden>
+            <span class="cmp-lbl">Comparer</span>
+            <label class="cmp-f"><span class="cmp-k a">Avant</span><select id="obsAvant" aria-label="Passage avant"></select></label>
+            <button class="icon-button petit" id="obsSwap" aria-label="Inverser avant et après" title="Inverser"><span class="ico" data-icon="swap"></span></button>
+            <label class="cmp-f"><span class="cmp-k b">Après</span><select id="obsApres" aria-label="Passage après"></select></label>
+            <div class="seg small" role="group" aria-label="Un clic sur la frise place">
+              <button data-placer="avant" aria-pressed="false">Clic = avant</button>
+              <button data-placer="apres" aria-pressed="true">Clic = après</button>
+            </div>
+          </div>
+          <div class="obs-time-row">
+            <button class="obs-play" id="obsPlay" aria-label="Faire défiler les passages dans le temps" aria-pressed="false"><span class="ico" data-icon="play"></span></button>
+            <button class="icon-button petit" id="obsPrev" aria-label="Passage précédent"><span class="ico" data-icon="left"></span></button>
+            <div class="obs-track-wrap">
+              <div class="obs-track-cap"><b id="obsCur"></b><span id="obsCurInfo"></span></div>
+              <div class="obs-track" id="obsTrack" role="listbox" aria-label="Passages NISAR"></div>
+              <div class="obs-track-ends" hidden><span id="obsT0"></span><span class="obs-bars-lbl" id="obsBarsLbl"></span><span id="obsT1"></span></div>
+            </div>
+            <button class="icon-button petit" id="obsNext" aria-label="Passage suivant"><span class="ico" data-icon="right"></span></button>
+            <button class="obs-cmp-btn" id="obsCompare" aria-pressed="false"><span class="ico" data-icon="compare"></span><span>Comparer</span></button>
+          </div>
+        </div>
+
+        <!-- accueil sur la vue monde -->
+        <div class="obs-intro" id="obsIntro" hidden>
+          <p class="eyebrow"><span class="pulse-dot"></span>NASA-ISRO NISAR · radar en bande L</p>
+          <h1>Le radar qui voit à travers les nuages, lu pour tous<span class="accent">.</span></h1>
+          <p>SAJE Field analyse les passages du satellite NISAR au-dessus de la province de l’Estuaire (Gabon) et colore chaque zone selon ce que disent les données exploitables.</p>
+          <div class="obs-intro-actions">
+            <button class="button primary" id="obsGo"><span class="ico" data-icon="target"></span>Aller à l’Estuaire</button>
+            <button class="button ghost" id="obsStay">Rester sur le monde</button>
+          </div>
+        </div>
+
+        <!-- fiche complète d'une zone -->
+        <aside class="obs-fiche" id="obsFiche" aria-labelledby="ficheTitle" tabindex="-1" hidden></aside>
+      </section>
+
+      <!-- en-tête de page -->
+      <div class="page-head">
+        <div>
+          <p class="eyebrow"><span class="pulse-dot"></span><span id="pageEyebrow">Observatoire NISAR · Gabon</span></p>
+          <h1 id="pageTitle">L’Estuaire, vu par le radar<span class="accent">.</span></h1>
+          <p class="lead" id="pageIntro">Des observations satellites lues pour vous, en langage clair.</p>
+        </div>
+        <div class="head-date">
+          <span class="eyebrow">Dernière observation</span>
+          <strong id="latestDate">—</strong>
+          <span class="badge" id="latestBadge">—</span>
+        </div>
+      </div>
+
+      <div class="notice" id="dataNotice" hidden></div>
+
+      <!-- filtres -->
+      <div class="filterbar" data-pages="accueil" role="group" aria-label="Choix du territoire et de l’observation">
+        <label class="field"><span class="ico" data-icon="pin"></span><span class="field-in"><span class="field-lbl">Territoire</span><select id="zoneSelect"></select></span></label>
+        <label class="field"><span class="ico" data-icon="calendar"></span><span class="field-in"><span class="field-lbl">Observation</span><select id="dateSelect"></select></span></label>
+        <div class="filter-meta" id="dateMeta" aria-live="polite"></div>
+        <button class="button ghost" id="resetZone"><span class="ico" data-icon="expand"></span>Toute la province</button>
+      </div>
+
+      <!-- ===== Vue d'ensemble : verdict + indicateurs ===== -->
+      <section class="verdict" id="verdict" data-pages="accueil" aria-live="polite" aria-labelledby="verdictTitle"></section>
+      <section class="metrics" id="metrics" data-pages="accueil" aria-label="Indicateurs clés"></section>
+
+
+      <!-- ===== Passages du satellite ===== -->
+      <section class="panel passes" data-pages="accueil" aria-labelledby="passesTitle">
+        <div class="section-head">
+          <div><p class="eyebrow">Dans le temps</p><h2 id="passesTitle">Les passages du satellite</h2></div>
+          <span class="muted small" id="passesInfo"></span>
+        </div>
+        <div class="timeline" id="timeline"></div>
+      </section>
+
+      <!-- ===== Lire la zone + comparer ===== -->
+      <section class="dash-row" data-pages="accueil">
+        <aside class="panel inspector" aria-labelledby="inspTitle">
+          <div class="insp-head">
+            <p class="eyebrow">Lire la zone</p>
+            <h2 id="inspTitle">—</h2>
+          </div>
+          <div class="constats" id="constats" aria-live="polite"></div>
+          <details class="unknowns" id="unknowns"></details>
+          <div class="insp-actions">
+            <button class="button primary" id="copySummary"><span class="ico" data-icon="copy"></span>Copier le résumé</button>
+            <button class="button" id="exportCsv"><span class="ico" data-icon="download"></span>CSV</button>
+            <button class="button" id="printSheet"><span class="ico" data-icon="print"></span>Fiche PDF</button>
+          </div>
+        </aside>
+        <section class="panel compare-panel" aria-labelledby="cmpTitle">
+          <div class="section-head">
+            <div><p class="eyebrow">Avant / après</p><h2 id="cmpTitle">Ce qui a changé entre deux passages</h2></div>
+          </div>
+          <input type="checkbox" id="compareToggle" checked hidden>
+          <div id="compareBox">
+            <label class="field-label inline">Comparer le passage choisi au<select id="beforeSelect"></select></label>
+            <div id="compareResult"></div>
+          </div>
+        </section>
+      </section>
+
+      <!-- ===== Tous les indicateurs dans le temps ===== -->
+      <section class="panel multiples" data-pages="accueil" aria-labelledby="multiTitle">
+        <div class="section-head">
+          <div><p class="eyebrow">Vue d’ensemble</p><h2 id="multiTitle">Les 6 indicateurs dans le temps</h2></div>
+          <span class="muted small">Bande claire : ce qui est habituel pour cette zone · point : passage choisi</span>
+        </div>
+        <div class="mini-grid" id="miniGrid"></div>
+      </section>
+
+      <!-- ===== Historique des états + comparaison des zones ===== -->
+      <section class="dash-row" data-pages="accueil">
+        <section class="panel etats-panel" aria-labelledby="etatsTitle">
+          <div class="section-head">
+            <div><p class="eyebrow">Historique</p><h2 id="etatsTitle">L’état de la zone, passage après passage</h2></div>
+          </div>
+          <div class="table-scroll" id="etatsGrid"></div>
+          <div class="etats-leg" id="etatsLeg"></div>
+        </section>
+        <section class="panel zones-panel" aria-labelledby="zonesTitle">
+          <div class="section-head">
+            <div><p class="eyebrow">Comparer les zones</p><h2 id="zonesTitle">Toutes les zones suivies, le même jour</h2></div>
+          </div>
+          <div class="table-scroll" id="zonesTable"></div>
+        </section>
+      </section>
+
+      <!-- ===== Raisonnement (visible partout où il y a une analyse) ===== -->
+      <section class="panel reasoning" id="reasoning" data-pages="accueil" aria-labelledby="reasonTitle">
+        <div class="section-head">
+          <div><p class="eyebrow">Transparence</p><h2 id="reasonTitle">Comment SAJE Field est arrivé à cette conclusion</h2></div>
+          <button class="button ghost reveal" id="reasonToggle" aria-expanded="false" aria-controls="reasonSteps"><span>Voir le raisonnement</span><span class="ico" data-icon="chevron"></span></button>
+        </div>
+        <ol class="steps" id="reasonSteps"></ol>
+      </section>
+
+      <!-- ===== Prévision du prochain passage ===== -->
+      <section class="panel forecast" id="forecast" data-pages="accueil" aria-labelledby="forecastTitle">
+        <div class="section-head">
+          <div><p class="eyebrow">Et ensuite ?</p><h2 id="forecastTitle">Ce que le prochain passage devrait montrer</h2></div>
+          <div class="fc-head-actions">
+            <span class="muted small" id="forecastSub"></span>
+            <button class="button" id="exportForecast"><span class="ico" data-icon="download"></span>Prévisions (CSV)</button>
+          </div>
+        </div>
+        <div class="fc-grid" id="forecastCards"></div>
+        <details class="unknowns" id="forecastNo" hidden></details>
+        <details class="table-details fc-method">
+          <summary>Comment ces prévisions sont-elles faites ?</summary>
+          <div class="prose small" id="forecastMethod"></div>
+        </details>
+      </section>
+
+      <!-- ===== Tendances + points d'attention ===== -->
+      <section class="trend-grid" data-pages="accueil">
+        <div class="panel chart-panel">
+          <div class="section-head">
+            <div><p class="eyebrow">Prendre du recul</p><h2>Ce qui change dans le temps</h2></div>
+            <label class="field-label inline">Indicateur<select id="chartMetric"></select></label>
+          </div>
+          <div class="chart-wrap"><canvas id="trendChart" role="img" aria-label="Évolution de l’indicateur dans le temps"></canvas><div class="chart-empty" id="chartEmpty" hidden></div></div>
+          <div class="chart-foot">
+            <span class="legend-inline"><i class="band"></i>Normale de la zone (passages calibrés)</span>
+            <span class="legend-inline"><i class="fc-swatch"></i>Prévision du prochain passage (intervalle à 95 %)</span>
+            <label class="check"><input type="checkbox" id="includeBeta">Afficher les données d’essai (bêta)</label>
+          </div>
+          <details class="table-details"><summary>Voir les valeurs en tableau</summary><div class="table-scroll" id="chartTable"></div></details>
+        </div>
+        <aside class="panel attention" aria-labelledby="attTitle">
+          <p class="eyebrow">Points d’attention</p>
+          <h2 id="attTitle">Où regarder en priorité</h2>
+          <ol class="ranking" id="ranking"></ol>
+          <p class="footnote">Classement calculé pour l’observation choisie, à partir des écarts à la normale de chaque zone et de leur fiabilité. Ce n’est pas une alerte en temps réel.</p>
+        </aside>
+      </section>
+
+      <!-- ===== Pages de contenu ===== -->
+      <section id="page-bassin" class="bassin" data-pages="bassin" aria-label="Bassin du Congo : eau, végétation et humidité du sol" hidden></section>
+      <section id="page-comprendre" class="content-page" data-pages="comprendre"></section>
+      <section id="page-sources" class="content-page" data-pages="sources"></section>
+
+      <footer class="main-foot">
+        <span>SAJE Field · Comprendre aujourd’hui, préserver demain.</span>
+        <span>Radar : NASA-ISRO NISAR (ASF DAAC) · <a href="#sources" data-page-link="sources">Sources & limites</a></span>
+      </footer>
+    </main>
+  </div>
+</div>
+
+<!-- visite guidée (non modale : la carte reste visible) -->
+<dialog id="tour" aria-labelledby="tourTitle">
+  <button class="icon-button close" data-close="tour" aria-label="Fermer la visite"><span class="ico" data-icon="close"></span></button>
+  <div class="tour-dots" id="tourDots" aria-hidden="true"></div>
+  <p class="eyebrow" id="tourStep"></p>
+  <h2 id="tourTitle"></h2>
+  <div id="tourText" class="tour-text"></div>
+  <div class="dialog-actions">
+    <button class="button ghost" id="tourPrev">Précédent</button>
+    <button class="button primary" id="tourNext">Suivant</button>
+  </div>
+</dialog>
+
+<!-- saisie de coordonnées -->
+
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<noscript><p class="notice">Activez JavaScript pour explorer les données. Aucun serveur n’est nécessaire.</p></noscript>
+</body>
+</html>

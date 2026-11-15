@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SAJE Field — aperçu des données NISAR (province de l'Estuaire)</title>
+<link rel="stylesheet" href="lib/leaflet.css">
+<script src="lib/leaflet.js"></script>
+<script src="lib/chart.umd.min.js"></script>
+<script src="data_province.js" onerror="void 0"></script>
+<script src="data_region.js" onerror="void 0"></script>
+<script src="data_libreville.js" onerror="void 0"></script>
+<style>
+  :root { --fond:#0f1720; --panneau:#16212d; --texte:#e6edf3; --doux:#8aa0b4; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.4 system-ui, sans-serif; background:var(--fond); color:var(--texte); display:flex; height:100vh; }
+  #carte { flex:1; }
+  aside { width:380px; background:var(--panneau); padding:16px; overflow:auto; }
+  h1 { font-size:17px; margin:0 0 4px; } .sous { color:var(--doux); font-size:12px; margin-bottom:10px; }
+  label { display:block; font-size:12px; color:var(--doux); margin:12px 0 4px; }
+  select, input[type=range] { width:100%; }
+  select { background:#0f1720; color:var(--texte); border:1px solid #2a3a4a; padding:6px; border-radius:6px; }
+  .date { font-size:20px; font-weight:600; margin-top:4px; }
+  .badge { font-size:11px; padding:2px 6px; border-radius:10px; background:#24384a; margin-left:6px; font-weight:400; }
+  .legende { font-size:12px; color:var(--doux); background:#0f1720; padding:8px; border-radius:6px; margin-top:8px; }
+  canvas { background:#0f1720; border-radius:6px; margin-top:8px; }
+  .alerte { font-size:11px; color:#e0b45a; margin-top:12px; }
+  .info { font-size:12px; color:var(--doux); }
+</style>
+</head>
+<body>
+<div id="carte"></div>
+<aside>
+  <h1>SAJE Field — province de l'Estuaire</h1>
+  <div class="sous">Données radar NISAR (bande L) · visionneuse de contrôle</div>
+  <div class="info" id="resume"></div>
+
+  <label>Niveau de zoom</label>
+  <select id="niveau"></select>
+  <label>Orbite (passage du satellite)</label>
+  <select id="orbite"></select>
+  <label>Couche</label>
+  <select id="couche"></select>
+  <div class="legende" id="legende"></div>
+
+  <label>Date</label>
+  <input type="range" id="curseur" min="0" value="0">
+  <div class="date" id="date"></div>
+
+  <label>Opacité</label>
+  <input type="range" id="opacite" min="0" max="100" value="85">
+
+  <label>Zone (cliquer sur la carte ou choisir)</label>
+  <select id="zone"></select>
+  <canvas id="graphe" height="230"></canvas>
+  <div class="alerte" id="alerte"></div>
+</aside>
+<script>
+const D = window.SAJE || {};
+if (!Object.keys(D).length) { document.body.innerHTML = '<p style="padding:20px">Aucune donnée : lancer d\'abord preparer_donnees_prototype.py</p>'; throw 0; }
+const $ = id => document.getElementById(id);
+const carte = L.map('carte');
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+  { attribution: 'Fond : Esri World Imagery · Radar : NASA/ISRO NISAR via ASF', maxZoom: 18 }).addTo(carte);
+let M, liste = [], overlay = null, zonesLayer = null, graphe = null;
+
+Object.keys(D).forEach(n => $('niveau').add(new Option(D[n].titre, n)));
+
+function choisirNiveau() {
+  M = D[$('niveau').value];
+  carte.fitBounds(M.bornes_leaflet);
+  $('resume').textContent = `${M.dates.length} dates · ${M.periode[0]} → ${M.periode[1]} · pixel ~${M.pixel_m} m · orbites ${M.orbites.join(', ')}`;
+  $('orbite').innerHTML = ''; $('orbite').add(new Option('Toutes les orbites', 'toutes'));
+  M.orbites.forEach(o => { const d = M.dates.find(x => x.orbite === o); $('orbite').add(new Option(`Orbite ${o} (${d.sens === 'ASCENDING' ? 'matin' : 'soir'})`, o)); });
+  $('zone').innerHTML = ''; Object.keys(M.series).filter(z => M.series[z].length).forEach(z => $('zone').add(new Option(z, z)));
+  if (zonesLayer) carte.removeLayer(zonesLayer);
+  zonesLayer = L.geoJSON(M.zones, { style: { color: '#ffd166', weight: 1.5, fill: false },
+    onEachFeature: (f, l) => l.bindTooltip(f.properties.nom).on('click', () => { $('zone').value = f.properties.nom; tracer(); }) }).addTo(carte);
+  $('alerte').textContent = M.avertissement;
+  choisirOrbite();
+}
+function choisirOrbite() {
+  const o = $('orbite').value;
+  liste = M.dates.filter(d => o === 'toutes' || d.orbite == o);
+  $('curseur').max = liste.length - 1; $('curseur').value = liste.length - 1;
+  const c = $('couche'), avant = c.value; c.innerHTML = '';
+  const G = M.globales || { frequence_eau: M.frequence_eau };
+  Object.keys(M.couches).filter(k => G[k] || liste.some(d => d.images[k]))
+    .forEach(k => c.add(new Option(k.replace('_', ' '), k)));
+  if ([...c.options].some(x => x.value === avant)) c.value = avant;
+  afficher(); tracer();
+}
+function afficher() {
+  const k = $('couche').value, d = liste[+$('curseur').value];
+  const G = M.globales || { frequence_eau: M.frequence_eau }, globale = !!G[k];
+  const url = globale ? G[k] : d.images[k];
+  $('legende').textContent = M.couches[k] + (url ? '' : ' — indisponible pour cette date (choisir une autre date ou orbite)');
+  $('date').innerHTML = d.date + `<span class="badge">orbite ${d.orbite}</span><span class="badge">${d.maturite}</span>` +
+    (d.double_pol ? '<span class="badge">HH+HV</span>' : '<span class="badge">HH</span>');
+  if (overlay) carte.removeLayer(overlay);
+  overlay = url ? L.imageOverlay(url, M.bornes_leaflet, { opacity: $('opacite').value / 100 }).addTo(carte) : null;
+  $('curseur').disabled = globale;
+}
+function tracer() {
+  const z = $('zone').value, o = $('orbite').value;
+  const s = (M.series[z] || []).filter(p => o === 'toutes' || p.orbite == o);
+  const memeOrbite = o !== 'toutes';
+  const sets = [{ label: 'Eau (%)', data: s.map(p => p.part_eau_pct), borderColor: '#3b82f6', yAxisID: 'y2', borderDash: [4, 3] },
+                { label: 'Inondation (%)', data: s.map(p => p.part_inondation_pct), borderColor: '#22d3ee', yAxisID: 'y2', borderDash: [2, 2] }];
+  if (memeOrbite) sets.unshift(
+    { label: 'HH (dB)', data: s.map(p => p.HH_dB), borderColor: '#e0e0e0', yAxisID: 'y' },
+    { label: 'HV (dB)', data: s.map(p => p.HV_dB), borderColor: '#3fb68b', yAxisID: 'y' });
+  else sets.unshift({ label: 'Écart à la normale HH (dB)', data: s.map(p => p.anomalie_HH_dB), borderColor: '#f87171', yAxisID: 'y' });
+  if (graphe) graphe.destroy();
+  graphe = new Chart($('graphe'), { type: 'line', data: { labels: s.map(p => p.date.slice(2)), datasets: sets },
+    options: { plugins: { legend: { labels: { color: '#cfd8e3', boxWidth: 10 } },
+      title: { display: !memeOrbite, text: 'Toutes orbites : écart à la normale (HH/HV bruts : choisir une orbite)', color: '#8aa0b4', font: { size: 11 } } },
+      scales: { x: { ticks: { color: '#8aa0b4', maxRotation: 60 } }, y: { ticks: { color: '#8aa0b4' } },
+        y2: { position: 'right', ticks: { color: '#3b82f6' }, grid: { drawOnChartArea: false } } } } });
+}
+$('niveau').onchange = choisirNiveau; $('orbite').onchange = choisirOrbite;
+$('couche').onchange = $('curseur').oninput = afficher; $('zone').onchange = tracer;
+$('opacite').oninput = e => overlay && overlay.setOpacity(e.target.value / 100);
+choisirNiveau();
+</script>
+</body>
+</html>

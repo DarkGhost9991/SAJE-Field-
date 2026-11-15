@@ -1,0 +1,12 @@
+* text=auto
+# Les .bat Windows doivent garder des fins de ligne CRLF
+*.bat text eol=crlf
+# Fichiers binaires
+*.png binary
+*.webp binary
+*.woff2 binary
+*.zip binary
+# Données générées : pas de diff ligne à ligne, ignorées dans les statistiques de langage
+app/js/donnees/** -diff linguist-generated=true
+app/lib/** linguist-vendored=true
+preparation_donnees/lib/** linguist-vendored=true

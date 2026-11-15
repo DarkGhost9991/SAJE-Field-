@@ -1,0 +1,7 @@
+numpy
+h5py
+pyproj
+pillow
+fsspec
+aiohttp
+optuna>=4,<5

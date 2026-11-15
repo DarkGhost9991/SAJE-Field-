@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>SAJE Field · test de parité Python / navigateur</title>
+<!-- Ouvrir ce fichier dans le navigateur : il refait dans le navigateur toutes les prévisions
+     calculées par prevision/prevoir.py et vérifie que les deux donnent les mêmes résultats. -->
+<script src="../js/donnees/data_province.js"></script>
+<script src="../js/donnees/cube_province.js"></script>
+<script src="../js/donnees/previsions_province.js"></script>
+<script src="../js/donnees.js"></script>
+<script src="../js/analyse.js"></script>
+<script src="../js/raisonnement.js"></script>
+<script src="../js/prediction.js"></script>
+</head>
+<body>
+<pre id="out">test en cours…</pre>
+<script>
+(async () => {
+  const out = document.getElementById('out');
+  try {
+    const M = Donnees.M, PY = window.SAJE_PREVISIONS.province.zones, R = Raisonnement;
+    await Analyse.charger();
+    let n = 0, ok = 0, empreinte = 0, ecartMax = 0;
+    const erreurs = [];
+    const proche = (a, b) => a == null && b == null || Math.abs(a - b) <= 2e-4 * (1 + Math.abs(b));
+    for (const nom of Donnees.nomsZones()) {
+      const f = Donnees.zonesSuivies().find(z => z.properties.nom === nom);
+      const serie = R.completer(/Province/.test(nom) ? M.series[nom]
+        : M.dates.map(d => Analyse.stats(Analyse.indices(f.geometry), d)).filter(p => p && p.pixels > 0));
+      for (const d of M.dates) {
+        const py = PY[nom]?.[d.date + '|' + d.orbite] || [];
+        for (const id of R.ORDRE) {
+          n++;
+          const js = Prediction.prevoir(id, R.IND[id], serie, d);
+          const p = py.find(x => x.id === id);
+          const vu = Prediction.toutes(serie, d, R.IND, [id], null, nom)[0];
+          if (vu.source === 'python') empreinte++;
+          if (!p) { erreurs.push(`${nom} ${d.date} ${id} : absent côté Python`); continue; }
+          if (p.ok !== js.ok) { erreurs.push(`${nom} ${d.date} ${id} : ok Python=${p.ok} navigateur=${js.ok}`); continue; }
+          if (!js.ok) { ok++; continue; }
+          const champs = [['valeur', p.valeur, js.valeur], ['bas', p.bas, js.bas], ['haut', p.haut, js.haut], ['mae', p.mae, js.mae],
+            ['risque', p.risque?.p, js.risque?.p], ['confiance', p.conf.score, js.conf.score]];
+          const diff = champs.filter(([, a, b]) => !proche(a, b));
+          champs.forEach(([, a, b]) => { if (a != null && b != null) ecartMax = Math.max(ecartMax, Math.abs(a - b)); });
+          if (p.modele.id !== js.modele.id) diff.push(['modele', p.modele.id, js.modele.id]);
+          if (diff.length) erreurs.push(`${nom} ${d.date} ${id} : ` + diff.map(([k, a, b]) => `${k} ${a} ≠ ${b}`).join(', '));
+          else ok++;
+        }
+      }
+    }
+    out.textContent = `RESULTAT ${erreurs.length ? 'ECHEC' : 'OK'}\ncomparaisons=${n} identiques=${ok} empreintes_valides=${empreinte} ecart_max=${ecartMax.toExponential(2)}\n` + erreurs.slice(0, 40).join('\n');
+  } catch (e) { out.textContent = 'RESULTAT ERREUR ' + e.stack; }
+})();
+</script>
+</body>
+</html>

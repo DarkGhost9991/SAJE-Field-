@@ -1,0 +1,24 @@
+# --- Secrets : ne JAMAIS publier ---
+token nasa.txt
+**/token*.txt
+.env
+.saje_field/
+
+# --- Python ---
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# --- Résultats intermédiaires (régénérés par les scripts) ---
+donnees_traitees/
+prevision/sorties/
+*.h5
+*.tmp
+
+# --- Système / éditeurs ---
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/

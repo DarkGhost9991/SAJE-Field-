@@ -1,0 +1,20 @@
+{
+  "_lisez_moi": "Réglages de la collecte du bassin du Congo. Modifier ici, pas dans le code.",
+  "emprise": {"ouest": 8.5, "est": 31.5, "sud": -13.5, "nord": 9.5,
+              "_note": "Bassin du Congo + façade gabonaise (Estuaire). Rectangle englobant, en degrés. Seuil d’eau par défaut -16 dB = plancher calibré sur les témoins de l’Estuaire (script v6.1)."},
+  "niveaux": {
+    "1km":  {"pas": 0.01,    "tuile": 200, "titre": "Bassin entier (environ 1,1 km)"},
+    "80m":  {"pas": 0.00072, "tuile": 500, "titre": "Zones d'intérêt (environ 80 m)", "zones_seulement": true}
+  },
+  "apercu": {"facteur": 5, "_note": "vue d'ensemble = moyenne de 5 x 5 cellules de 1 km (environ 5,5 km)"},
+  "zones_interet": [
+    {"nom": "Province de l'Estuaire (Gabon)", "ouest": 9.25, "est": 11.0, "sud": -0.65, "nord": 1.08}
+  ],
+  "periode_jours": 12,
+  "epoque": "2025-10-01",
+  "avec_beta": false,
+  "eau": {"seuils_HH_dB": [-22, -20, -19, -18, -17, -16, -15], "seuil_HH_defaut": -16, "seuil_HV_dB": -22,
+          "bornes_otsu": [-22, -15]},
+  "parallele": {"cadres": 4, "connexions_par_cadre": 8, "budget_brut_Mo": 1000},
+  "cache": "~/saje_cache_bassin"
+}
